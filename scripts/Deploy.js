@@ -7,7 +7,7 @@ async function main() {
 
   await contract.Deployed();
 
-  console.log("Gwei Gunslingers deployed to:", greeter.address);
+  console.log("Gwei Gunslingers deployed to:", contract.address);
 }
 
 // We recommend this pattern to be able to use async/await everywhere
