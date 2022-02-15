@@ -61,7 +61,7 @@ contract Greeter {
             emit Entry("A challenger wanders into town!");
             winner = shootout(shoot);
 
-            // Win logic
+            // Duel completion logic (who gets a slice of the booty, peace counter check, diplomatic victory)
 
 
 
