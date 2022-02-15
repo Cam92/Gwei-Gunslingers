@@ -1,6 +1,6 @@
 const { ethers } = require("ethers");
 
-const GAME_ADDRESS = "0x4D95186c314f362eF74550ce970a1aAd949e1075";
+const GAME_ADDRESS = "";
 const URL = process.env.RINKEBY_URL;
 const provider = new ethers.providers.JsonRpcProvider(URL);
 
