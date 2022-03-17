@@ -1,11 +1,12 @@
 const hre = require("hardhat");
+require('dotenv').config();
 
 async function main() {
 
   const Contract = await hre.ethers.getContractFactory("GweiGunslingers");
-  const contract = await Contract.deploy();
+  const contract = await Contract.deploy(10, 2, 2);
 
-  await contract.Deployed();
+  await contract.deployed();
 
   console.log("Gwei Gunslingers deployed to:", contract.address);
 }
