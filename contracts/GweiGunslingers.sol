@@ -1,69 +1,98 @@
 //SPDX-License-Identifier: Unlicense
 pragma solidity ^0.8.4;
 
+contract GweiGunslingers {
 
-contract Greeter {
-    address[] private graveyard;
-    uint8 private graveyardSize;
-    address[] private wounded;
-    uint8 private woundedListSize;
-    address payable private gunslinger1;
+//-----------------------------------------------------------
+// Vars, events, getters, and constructor
+//-----------------------------------------------------------
+    address[] public graveyard;
+    uint public graveyardSize;
+    address[] public wounded;
+    uint public woundedSize;
+    address private gunslinger1;
     bool private gunslinger1WillShoot;
-    address payable private gunslinger2;
-    uint8 private bootyExpiry;
-    uint8 private turnsOfPeace;
+    address private gunslinger2;
+    uint public bootyExpiry;
+    uint private turnsOfPeace;
+    mapping(address => Gunslinger) public gunslingers;
 
-    /*struct Gunslinger {
-        address add;
+    enum Outcome {Peace, Gunslinger1Win, Gunslinger2Win, MutualLoss}
+
+    struct Gunslinger {
         string name;
         uint8 duelCount;
-        bool wounded;
-        uint8 woundedCount;
-        bool dead;
-        uint8 deadCount;
         uint bootyClaimed;
-    }*/
+    }
 
     event Deployed();
     event Entry(string message);
-    event Duel();
+    event Duel(string message);
+    event OutcomeMessage(string message);
+    event Registration(string message);
 
-    function getBooty() public view returns(uint){
-        return this.balance / 1000000000;
-    }
+//-----------------------------------------------------------
+// Constructor, getters, etc
+//-----------------------------------------------------------
 
-    constructor(uint8 _bootyExpiry, uint8 _woundedListSize, uint8 _graveyardSize) {
+    constructor(uint _bootyExpiry, uint _woundedSize, uint _graveyardSize) {
     turnsOfPeace = 0;
-    woundedListSize = _woundedListSize;
+    woundedSize = _woundedSize;
     graveyardSize = _graveyardSize;
     bootyExpiry = _bootyExpiry;
 
     emit Deployed();
     }
 
-    function duel(bool shoot) external payable {
-        address[] memory winner;
-        bool isDead = false;
-        for (uint i = 0; i < graveyard.length; i++) {
-            if (graveyard[i] == msg.sender)
-                isDead = true;
+    function getBooty() public view returns(uint){
+        return address(this).balance / 1 gwei;
+    }
+
+    fallback() external payable {}
+
+//-----------------------------------------------------------
+// Registration
+//-----------------------------------------------------------
+
+    modifier isRegistered() {
+        require(bytes(gunslingers[msg.sender].name).length != 0);
+        _;
+    }
+
+    modifier isNotRegistered() {
+        require(bytes(gunslingers[msg.sender].name).length == 0);
+        _;
+    }
+
+
+function register(string memory _name) external isNotRegistered {
+
+    gunslingers[msg.sender].name = _name;
+
+    emit Registration(string(abi.encodePacked(_name, " wanders into town")));
+}
+
+
+    function duel(bool shoot) external payable isRegistered {
+        bool snuffedIt = false;
+        for (uint i = 0; i < graveyard.length || i < graveyardSize; i++) {
+            if (graveyard[graveyard.length - i] == msg.sender)
+                snuffedIt = true;
         }
         
-        require(!isDead);
-        require(msg.value == 1000000000);
-        this.transfer(msg.value);
+        require(!snuffedIt);
+        require(msg.value == 1 gwei);
+        payable(address(this)).transfer(msg.value);
 
         if (gunslinger1 == address(0)) {
             gunslinger1 = msg.sender;
             gunslinger1WillShoot = shoot;
-            emit Entry("A gunslinger is waiting for a duel!");
+            emit Entry("A gunslinger throws down the gauntlet!");
         } 
         else if (gunslinger2 == address(0)) {
             gunslinger2 = msg.sender;
-            emit Entry("A challenger wanders into town!");
-            winner = shootout(shoot);
-
-            // Win logic
+            emit Entry("A challenger accepts the duel!");
+        //Outcome winner = shootout(shoot);
 
 
 
@@ -75,17 +104,22 @@ contract Greeter {
 
     }
 
-    function shootout(bool gunslinger2WillShoot) private returns(address[]) {
 
-        address[] winners;
+//-----------------------------------------------------------
+// Action
+//-----------------------------------------------------------
+
+    //function shootout(bool gunslinger2WillShoot) private returns(Outcome) {
+    function shootout(bool gunslinger2WillShoot) private {
+
         // #1 shoots
         if (gunslinger1WillShoot && !gunslinger2WillShoot) { 
 
             // #2 either gets wounded or killed
             hit(gunslinger2);
+            pay(gunslinger1);
 
-            // Payout for 1
-            return winners.push(gunslinger1);
+            //return Outcome.Gunslinger1Win;
         }
 
         // #2 shoots
@@ -93,9 +127,9 @@ contract Greeter {
 
             // #1 either gets wounded or killed
             hit(gunslinger1);
+            pay(gunslinger2);
 
-            // Payout for 2
-            return winners.push(gunslinger2);
+            //return Outcome.Gunslinger2Win;
         }
 
         // Both shoot
@@ -105,31 +139,49 @@ contract Greeter {
             hit(gunslinger1);
             hit(gunslinger2);
 
-            return [];
+            //return Outcome.MutualLoss;
         }
 
         // Neither shoot
         else if (!gunslinger1WillShoot && !gunslinger2WillShoot) { 
-            return [gunslinger1, gunslinger2];
+            peacefulVictory();
+
+           //return Outcome.Peace;
         }
     }
 
+
     function hit(address gunslinger) private {
-            bool gunslingerKilled = false;
-            for (uint i = 0; i < wounded.length; i++) { 
-                if (wounded[i] == gunslinger)
-                    gunslingerKilled == true;
+            bool snuffedIt = false;
+            for (uint i = 0; i < woundedSize || i < wounded.length; i++) { 
+                if (wounded[wounded.length - i] == gunslinger) 
+                    snuffedIt == true;
             }
-            if (gunslingerKilled) {
+            if (snuffedIt) {
                 graveyard.push(gunslinger);
-                if (graveyard.length >= graveyardSize)
-                    graveyard[graveyard.length - graveyardSize + 1] == address(0);
             }
             else {
                 wounded.push(gunslinger);
-                if (wounded.length >= woundedListSize)
-                    wounded[graveyard.length - woundedListSize + 1] == address(0);
             }
+    }
+    
+
+    function pay(address gunslinger) private {
+        payable(gunslinger).transfer(getBooty() / bootyExpiry);
+    }
+
+
+    function peacefulVictory() private returns(bool v) {
+        turnsOfPeace++;
+
+        if(turnsOfPeace == bootyExpiry) {
+            turnsOfPeace = 0;
+
+            payable(gunslinger1).transfer(getBooty() / 2);
+            payable(gunslinger2).transfer(getBooty());
+
+            v = true;
+        }
     }
 
 }
