@@ -34,7 +34,7 @@ contract GweiGunslingers {
         string name;
         uint8 duelCount;
         uint bootyClaimed;
-        uint inDuel;
+        bool inDuel;
     }
 
     mapping(address => Gunslinger) public gunslingers;
@@ -55,10 +55,17 @@ contract GweiGunslingers {
     // Duel[] public duels;
 
     event Deployed();
-    event Entry(string message);
-    event OutcomeMessage(string message);
-    event Registration(string message);
-    event ReadyForRecoup();
+    event Registration(string);
+    event Entry(string);
+    event GunslingerAction(string, bool);
+    event ReadyForConsequences();
+    event OutcomeMessage(string, string, Outcome);
+    event ForceResetDuel(string);
+    event Punish(string);
+    event Reset();
+    event Wounded(string);
+    event Killed(string);
+    event PeacefulVictory(string, string, uint);
 
 
 
@@ -82,7 +89,11 @@ contract GweiGunslingers {
         return address(this).balance / 1 gwei;
     }
 
-    function readyForRecoup() public view returns(bool) {
+    function getGunslinger(address gunslinger) public view returns(Gunslinger memory) {
+        return gunslingers[gunslinger];
+    }
+
+    function readyForConsequences() public view returns(bool) {
         return (gunslinger1ActionComplete && gunslinger2ActionComplete);
     }
 
@@ -119,21 +130,28 @@ contract GweiGunslingers {
     }
 
     modifier isInDuel() {
-        require(gunslingers[msg.sender].inDuel != 0);
+        require(gunslingers[msg.sender].inDuel == true);
 
         _;
     }
 
     modifier isNotInDuel() {
-        require(gunslingers[msg.sender].inDuel == 0);
+        require(gunslingers[msg.sender].inDuel == false);
 
         _;
     }
 
     modifier isNotDead() {
-        bool isDead = false;
-        for (uint i = 0; i < graveyard.length || i < graveyardSize; i++) {
-            if (graveyard[graveyard.length - i] == msg.sender)
+        bool isDead;
+        uint startingPoint;
+        if(graveyard.length < graveyardSize)
+            startingPoint = 0;
+        else
+            startingPoint = (graveyard.length - graveyardSize);
+
+
+        for (uint i = startingPoint; i < graveyard.length; i++) {
+            if (graveyard[i] == msg.sender)
                 isDead = true;
         }
         
@@ -143,12 +161,18 @@ contract GweiGunslingers {
     }
 
     modifier isFitForAction() {
-        require(gunslingers[msg.sender].inDuel == 0);
+        require(gunslingers[msg.sender].inDuel == false);
         require(bytes(gunslingers[msg.sender].name).length != 0);
 
         bool isDead;
-        for (uint i = 0; i < graveyard.length || i < graveyardSize; i++) {
-            if (graveyard[graveyard.length - i] == msg.sender)
+        uint startingPoint;
+        if(graveyard.length < graveyardSize)
+            startingPoint = 0;
+        else
+            startingPoint = (graveyard.length - graveyardSize);
+
+        for (uint i = startingPoint; i < graveyard.length; i++) {
+            if (graveyard[i] == msg.sender)
                 isDead = true;
         }
         
@@ -196,14 +220,14 @@ contract GweiGunslingers {
             duelStartTime = block.timestamp;
             gunslinger1 = msg.sender;
             gunslinger1ActionHash = hashAction(shoot, watchword);
-            gunslingers[msg.sender].inDuel = 1;
+            gunslingers[msg.sender].inDuel = true;
 
             emit Entry(string(abi.encodePacked(gunslingers[msg.sender].name, " throws down the gauntlet!")));
         } 
         else if (gunslinger2 == address(0)) {
             gunslinger2 = msg.sender;
             gunslinger2ActionHash = hashAction(shoot, watchword);
-            gunslingers[msg.sender].inDuel = 1;
+            gunslingers[msg.sender].inDuel = true;
             readyForShootout = true;
             emit Entry(string(abi.encodePacked(gunslingers[msg.sender].name, " accepts the duel!")));
         }
@@ -226,6 +250,7 @@ contract GweiGunslingers {
         require(readyForShootout);
 
         if(msg.sender == gunslinger1) {
+            require(!gunslinger1ActionComplete);
             require(gunslinger1ActionHash == hashAction(shoot, watchword));
             gunslinger1Shoots = shoot;
             gunslinger1ActionComplete = true;
@@ -233,8 +258,10 @@ contract GweiGunslingers {
                 hit(gunslinger2);
                 turnsOfPeace = 0;
             }
+            emit GunslingerAction(gunslingers[msg.sender].name, shoot);
         }
         else if(msg.sender == gunslinger2) {
+            require(!gunslinger2ActionComplete);
             require(gunslinger2ActionHash == hashAction(shoot, watchword));
             gunslinger2Shoots = shoot;
             gunslinger2ActionComplete = true;
@@ -242,10 +269,11 @@ contract GweiGunslingers {
                 hit(gunslinger1);
                 turnsOfPeace = 0;
             }
+            emit GunslingerAction(gunslingers[msg.sender].name, shoot);
         }
 
         if (gunslinger1ActionComplete && gunslinger2ActionComplete)
-            emit ReadyForRecoup();
+            emit ReadyForConsequences();
     }
 
     /***** End of main action function *****/
@@ -253,15 +281,24 @@ contract GweiGunslingers {
 
     /***** Extra action functions *****/
     function hit(address gunslinger) internal {
-            bool isDead = false;
-            for (uint i = 0; i < woundedSize || i < wounded.length; i++) { 
-                if (wounded[wounded.length - i] == gunslinger) 
-                    isDead == true;
+            bool isDead;
+            uint startingPoint;
+
+            if(wounded.length < woundedSize)
+                startingPoint = 0;
+            else
+                startingPoint = (wounded.length - woundedSize);
+
+            for (uint i = startingPoint; i < wounded.length; i++) {
+                if (wounded[i] == msg.sender)
+                    isDead = true;
             }
             if (isDead) {
+                emit Killed(gunslingers[gunslinger].name);
                 graveyard.push(gunslinger);
             }
             else {
+                emit Wounded(gunslingers[gunslinger].name);
                 wounded.push(gunslinger);
             }
     }
@@ -271,12 +308,12 @@ contract GweiGunslingers {
 
 
 //-----------------------------------------------------------
-// Recoup
+// Consequences
 //-----------------------------------------------------------
 
 
-    /***** Main recoup function *****/
-    function recoup() external isInDuel returns(Outcome outcome){
+    /***** Main consequences function *****/
+    function consequences() external isInDuel returns(Outcome outcome){
         
         require(duelExpired() || 
                         (gunslinger1ActionComplete && gunslinger2ActionComplete)
@@ -294,8 +331,6 @@ contract GweiGunslingers {
 
             // #2 either gets wounded or killed
             pay(gunslinger1);
-            reset();
-
             outcome = Outcome.Gunslinger1Win;
         }
 
@@ -304,8 +339,6 @@ contract GweiGunslingers {
 
             // #1 either gets wounded or killed
             pay(gunslinger2);
-            reset();
-
             outcome = Outcome.Gunslinger2Win;
         }
 
@@ -313,27 +346,28 @@ contract GweiGunslingers {
         else if (gunslinger1Shoots && gunslinger2Shoots) { 
 
             // Both wounded or killed
-            reset();
-
             outcome = Outcome.MutualLoss;
         }
 
         // Neither shoot
         else if (!gunslinger1Shoots && !gunslinger2Shoots) { 
             peacefulVictory();
-            reset();
 
            outcome = Outcome.Peace;
         }
+
+        emit OutcomeMessage(gunslingers[gunslinger1].name, gunslingers[gunslinger2].name, outcome);
+        reset();
     }
 
-    /***** End of main recoup function *****/
+    /***** End of main consequences function *****/
 
 
-    /***** Extra recoup functions *****/
+    /***** Extra consequences functions *****/
     function pay(address gunslinger) internal {
-        gunslingers[gunslinger].bootyClaimed = uint(getBooty() / bootyExpiry);
-        payable(gunslinger).transfer(getBooty() / bootyExpiry);
+        uint amountPaid = getBooty() / bootyExpiry;
+        gunslingers[gunslinger].bootyClaimed += amountPaid;
+        payable(gunslinger).transfer(amountPaid * 1 gwei);
     } 
 
 
@@ -341,10 +375,12 @@ contract GweiGunslingers {
         turnsOfPeace++;
 
         if(turnsOfPeace == bootyExpiry) {
+            uint booty = getBooty();
+            emit PeacefulVictory(gunslingers[gunslinger1].name, gunslingers[gunslinger2].name, booty);
             turnsOfPeace = 0;
 
-            payable(gunslinger1).transfer(getBooty() / 2);
-            payable(gunslinger2).transfer(getBooty());
+            payable(gunslinger1).transfer((booty * 1 gwei) / 2);
+            payable(gunslinger2).transfer(booty * 1 gwei);
 
             v = true;
         }
@@ -356,21 +392,25 @@ contract GweiGunslingers {
                         (block.timestamp - duelStartTime > (duelAllocationTime + 30 seconds))
                     );
 
+        emit ForceResetDuel(gunslingers[msg.sender].name);
+
         punish(gunslinger1);
         punish(gunslinger2);
+
 
         reset();
     }
 
 
     function punish(address gunslinger) internal {
+        emit Punish(gunslingers[gunslinger].name);
         wounded.push(gunslinger);
         graveyard.push(gunslinger);
     }
 
 
     function reset() internal {
-
+        emit Reset();
         readyForShootout = false;
         duelStartTime = 0;
         gunslinger1ActionComplete = false;
@@ -379,13 +419,13 @@ contract GweiGunslingers {
         gunslinger2Shoots = false;
         gunslinger1ActionHash = 0;
         gunslinger2ActionHash = 0;
-        gunslingers[gunslinger1].inDuel = 0;
-        gunslingers[gunslinger2].inDuel = 0;
+        gunslingers[gunslinger1].inDuel = false;
+        gunslingers[gunslinger2].inDuel = false;
 
         gunslinger1 = address(0);
         gunslinger2 = address(0);
     }
 
-    /***** End of extra recoup functions *****/
+    /***** End of extra consequences functions *****/
 
 }
