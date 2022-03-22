@@ -32,7 +32,8 @@ contract GweiGunslingers {
 
     struct Gunslinger {
         string name;
-        uint8 duelCount;
+        uint duelCount;
+        uint killCount;
         uint bootyClaimed;
         bool inDuel;
     }
@@ -103,6 +104,55 @@ contract GweiGunslingers {
                     );
     }
 
+    function getGraveyard() public view returns(address[] memory) {
+        return graveyard;
+    }
+
+    function getGunslingerDeathCount(address gunslinger) public view returns(uint count) {
+        for (uint i = 0; i < graveyard.length; i++) {
+            if (graveyard[i] == gunslinger)
+                count++;
+        }
+    }
+
+    function isGunslingerDead(address gunslinger) public view returns(bool isDead) {
+        uint startingPoint;
+        if(graveyard.length < graveyardSize)
+            startingPoint = 0;
+        else
+            startingPoint = (graveyard.length - graveyardSize);
+
+
+        for (uint i = startingPoint; i < graveyard.length; i++) {
+            if (graveyard[i] == gunslinger)
+                isDead = true;
+        }
+    }
+
+    function getWounded() public view returns(address[] memory) {
+        return wounded;
+    }
+
+    function getGunslingerWoundedCount(address gunslinger) public view returns(uint count) {
+        for (uint i = 0; i < wounded.length; i++) {
+            if (wounded[i] == gunslinger)
+                count++;
+        }
+    }
+
+    function isGunslingerWounded(address gunslinger) public view returns(bool isWounded) {
+        uint startingPoint;
+        if(wounded.length < woundedSize)
+            startingPoint = 0;
+        else
+            startingPoint = (wounded.length - woundedSize);
+
+        for (uint i = startingPoint; i < wounded.length; i++) {
+            if (wounded[i] == gunslinger)
+                isWounded = true;
+        }
+    }
+ 
     /***** End of getter functions *****/
 
 
@@ -142,20 +192,7 @@ contract GweiGunslingers {
     }
 
     modifier isNotDead() {
-        bool isDead;
-        uint startingPoint;
-        if(graveyard.length < graveyardSize)
-            startingPoint = 0;
-        else
-            startingPoint = (graveyard.length - graveyardSize);
-
-
-        for (uint i = startingPoint; i < graveyard.length; i++) {
-            if (graveyard[i] == msg.sender)
-                isDead = true;
-        }
-        
-        require(!isDead);
+        require(!isGunslingerDead(msg.sender));
 
         _;
     }
@@ -163,20 +200,7 @@ contract GweiGunslingers {
     modifier isFitForAction() {
         require(gunslingers[msg.sender].inDuel == false);
         require(bytes(gunslingers[msg.sender].name).length != 0);
-
-        bool isDead;
-        uint startingPoint;
-        if(graveyard.length < graveyardSize)
-            startingPoint = 0;
-        else
-            startingPoint = (graveyard.length - graveyardSize);
-
-        for (uint i = startingPoint; i < graveyard.length; i++) {
-            if (graveyard[i] == msg.sender)
-                isDead = true;
-        }
-        
-        require(!isDead);
+        require(!isGunslingerDead(msg.sender));
 
         _;
     }
@@ -221,6 +245,7 @@ contract GweiGunslingers {
             gunslinger1 = msg.sender;
             gunslinger1ActionHash = hashAction(shoot, watchword);
             gunslingers[msg.sender].inDuel = true;
+            gunslingers[msg.sender].duelCount++;
 
             emit Entry(string(abi.encodePacked(gunslingers[msg.sender].name, " throws down the gauntlet!")));
         } 
@@ -228,6 +253,7 @@ contract GweiGunslingers {
             gunslinger2 = msg.sender;
             gunslinger2ActionHash = hashAction(shoot, watchword);
             gunslingers[msg.sender].inDuel = true;
+            gunslingers[msg.sender].duelCount++;
             readyForShootout = true;
             emit Entry(string(abi.encodePacked(gunslingers[msg.sender].name, " accepts the duel!")));
         }
@@ -281,19 +307,11 @@ contract GweiGunslingers {
 
     /***** Extra action functions *****/
     function hit(address gunslinger) internal {
-            bool isDead;
-            uint startingPoint;
-
-            if(wounded.length < woundedSize)
-                startingPoint = 0;
-            else
-                startingPoint = (wounded.length - woundedSize);
-
-            for (uint i = startingPoint; i < wounded.length; i++) {
-                if (wounded[i] == msg.sender)
-                    isDead = true;
-            }
-            if (isDead) {
+            if (isGunslingerWounded(gunslinger)) {
+                if (gunslinger1 == gunslinger)
+                    gunslingers[gunslinger2].killCount++;
+                else if (gunslinger2 == gunslinger)
+                    gunslingers[gunslinger1].killCount++;
                 emit Killed(gunslingers[gunslinger].name);
                 graveyard.push(gunslinger);
             }
