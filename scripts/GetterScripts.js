@@ -15,11 +15,13 @@ async function main() {
   const game = await hre.ethers.getContractAt("GweiGunslingers", GAME_ADDRESS);
   const accounts = await ethers.getSigners();
 
-  // console.log(await game.getGunslinger(accounts[account].address));
+ // console.log(await game.getGunslinger(accounts[account].address));
 
-  //console.log(await provider.getBalance(accounts[account].address));
+// console.log(await provider.getBalance(accounts[account].address));
 
-   console.log(await game.getBooty());
+//  console.log(await provider.isGunslingerDead(accounts[account].address));
+
+  console.log(await game.getGraveyard());
 }
 
 main()

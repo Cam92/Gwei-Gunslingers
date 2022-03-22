@@ -5,17 +5,17 @@ const URL = process.env.RINKEBY_URL;
 const provider = new ethers.providers.JsonRpcProvider("http://127.0.0.1:8545");
 
 
-// const account = 0;
-// const shoot = false;
-// const watchword = "hoss";
+const account = 0;
+const shoot = false;
+const watchword = "hoss";
 
 // const account = 1;
 // const shoot = true;
 // const watchword = "nines";
 
-const account = 2;
-const shoot = false;
-const watchword = "thunderation";
+// const account = 2;
+// const shoot = false;
+// const watchword = "thunderation";
 
 
 async function main() {
