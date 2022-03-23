@@ -7,11 +7,11 @@ const provider = new ethers.providers.JsonRpcProvider(URL);
 // const account = 0;
 // const name = "The Lone Ranger";
 
-// const account = 1;
-// const name = "Butch Cassidy";
+const account = 1;
+const name = "Butch Cassidy";
 
-const account = 2;
-const name = "Django";
+// const account = 2;
+// const name = "Django";
 
 
 
