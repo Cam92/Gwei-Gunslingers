@@ -15,7 +15,7 @@ contract GweiGunslingers {
     uint public duelAllocationTime;
 
     uint public bootyExpiry;
-    uint private turnsOfPeace;
+    uint public turnsOfPeace;
     
     uint public duelStartTime;
     address public gunslinger1;
@@ -55,7 +55,6 @@ contract GweiGunslingers {
 
     // Duel[] public duels;
 
-    event Deployed();
     event Registration(string);
     event Entry(string);
     event GunslingerAction(string, bool);
@@ -80,8 +79,6 @@ contract GweiGunslingers {
         woundedSize = _woundedSize;
         graveyardSize = _graveyardSize;
         bootyExpiry = _bootyExpiry;
-
-        emit Deployed();
     }
 
 
@@ -92,6 +89,10 @@ contract GweiGunslingers {
 
     function getGunslinger(address gunslinger) public view returns(Gunslinger memory) {
         return gunslingers[gunslinger];
+    }
+
+    function getGunslingerName(address gunslinger) public view returns(string memory) {
+        return gunslingers[gunslinger].name;
     }
 
     function readyForConsequences() public view returns(bool) {
@@ -170,37 +171,38 @@ contract GweiGunslingers {
 
    /***** Security modifiers *****/
     modifier isRegistered() {
-        require(bytes(gunslingers[msg.sender].name).length != 0);
+        require(bytes(gunslingers[msg.sender].name).length != 0, "Must register as a gunslinger first!");
         _;
     }
 
     modifier isNotRegistered() {
-        require(bytes(gunslingers[msg.sender].name).length == 0);
+        require(bytes(gunslingers[msg.sender].name).length == 0, "You've already registered as a gunslinger!");
         _;
     }
 
     modifier isInDuel() {
-        require(gunslingers[msg.sender].inDuel == true);
+        require(gunslingers[msg.sender].inDuel == true, "Must be in duel!");
 
         _;
     }
 
     modifier isNotInDuel() {
-        require(gunslingers[msg.sender].inDuel == false);
+        require(gunslingers[msg.sender].inDuel == false, "Must not be in a duel!");
 
         _;
     }
 
     modifier isNotDead() {
-        require(!isGunslingerDead(msg.sender));
+        require(!isGunslingerDead(msg.sender), "You're currently dead!");
 
         _;
     }
 
+    // One modifier packaging multiple checks together
     modifier isFitForAction() {
-        require(gunslingers[msg.sender].inDuel == false);
-        require(bytes(gunslingers[msg.sender].name).length != 0);
-        require(!isGunslingerDead(msg.sender));
+        require(gunslingers[msg.sender].inDuel == false, "Must not be in a duel!");
+        require(bytes(gunslingers[msg.sender].name).length != 0, "Must register as a gunslinger first!");
+        require(!isGunslingerDead(msg.sender), "You're currently dead!");
 
         _;
     }
@@ -216,7 +218,7 @@ contract GweiGunslingers {
 
     /***** Main registration function *****/
     function register(string memory _name) external isNotRegistered {
-        require(bytes(_name).length != 0);
+        require(bytes(_name).length != 0, "Please submit a name!");
 
         gunslingers[msg.sender].name = _name;
 
@@ -235,7 +237,7 @@ contract GweiGunslingers {
    /***** Main commit function *****/
     function commitToDuel(bool shoot, string calldata watchword) external payable isFitForAction {
 
-        require(msg.value >= 1 gwei);
+        require(msg.value >= 1 gwei, "Message value must be 1 gwei or more.");
 
         // if(msg.value >= 5 gwei)
         //     buyItem();   /* for another time. Buy armour, or armour piercing bullets? */
@@ -273,11 +275,11 @@ contract GweiGunslingers {
     
     /***** Main action function *****/
     function shootout(bool shoot, string calldata watchword) external isInDuel {
-        require(readyForShootout);
+        require(readyForShootout, "Both gunslingers must be ready for  a shootout!");
 
         if(msg.sender == gunslinger1) {
-            require(!gunslinger1ActionComplete);
-            require(gunslinger1ActionHash == hashAction(shoot, watchword));
+            require(!gunslinger1ActionComplete, "You've already completed your part of the shootout!");
+            require(gunslinger1ActionHash == hashAction(shoot, watchword), "Your decision or watchword doesn't match what you've committed.");
             gunslinger1Shoots = shoot;
             gunslinger1ActionComplete = true;
             if(shoot) {
@@ -287,8 +289,8 @@ contract GweiGunslingers {
             emit GunslingerAction(gunslingers[msg.sender].name, shoot);
         }
         else if(msg.sender == gunslinger2) {
-            require(!gunslinger2ActionComplete);
-            require(gunslinger2ActionHash == hashAction(shoot, watchword));
+            require(!gunslinger2ActionComplete, "You've already completed your part of the shootout!");
+            require(gunslinger2ActionHash == hashAction(shoot, watchword), "Your decision or watchword doesn't match what you've committed.");
             gunslinger2Shoots = shoot;
             gunslinger2ActionComplete = true;
             if(shoot) {
@@ -334,7 +336,8 @@ contract GweiGunslingers {
     function consequences() external isInDuel returns(Outcome outcome){
         
         require(duelExpired() || 
-                        (gunslinger1ActionComplete && gunslinger2ActionComplete)
+                        (gunslinger1ActionComplete && gunslinger2ActionComplete),
+                        "Needs the gunslingers to complete the shootout, or for the duel to expire first!"
                     );
 
         if(!gunslinger1ActionComplete)
@@ -389,25 +392,24 @@ contract GweiGunslingers {
     } 
 
 
-    function peacefulVictory() internal returns(bool v) {
+    function peacefulVictory() internal {
         turnsOfPeace++;
 
         if(turnsOfPeace == bootyExpiry) {
             uint booty = getBooty();
             emit PeacefulVictory(gunslingers[gunslinger1].name, gunslingers[gunslinger2].name, booty);
             turnsOfPeace = 0;
-
-            payable(gunslinger1).transfer((booty * 1 gwei) / 2);
-            payable(gunslinger2).transfer(booty * 1 gwei);
-
-            v = true;
+            uint amountToPay = address(this).balance / 3;
+            payable(gunslinger1).transfer(amountToPay);
+            payable(gunslinger2).transfer(amountToPay);
         }
     }
 
 
     function forceResetDuel() external isRegistered {
         require((duelStartTime != 0) && 
-                        (block.timestamp - duelStartTime > (duelAllocationTime + 30 seconds))
+                        (block.timestamp - duelStartTime > (duelAllocationTime + 30 seconds)),
+                        "Needs the duel to expire first (+ 30 seconds)."
                     );
 
         emit ForceResetDuel(gunslingers[msg.sender].name);
